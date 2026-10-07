@@ -53,6 +53,18 @@ jobs:
           uv run healthchain seed medplum cookbook/data/prior_auth_chart.json | tee seed.log
           export PATIENT_ID=$(grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' seed.log | head -1)
           echo "PATIENT_ID=$PATIENT_ID"; test -n "$PATIENT_ID"
+          uv run python - <<'PY'
+          import os, httpx, json
+          base = os.environ["MEDPLUM_BASE_URL"].rstrip("/")
+          tok = httpx.post(os.environ["MEDPLUM_TOKEN_URL"], data={"grant_type": "client_credentials", "client_id": os.environ["MEDPLUM_CLIENT_ID"], "client_secret": os.environ["MEDPLUM_CLIENT_SECRET"]}).json()["access_token"]
+          h = {"Authorization": f"Bearer {tok}"}
+          for t in ("Patient", "Condition", "ServiceRequest", "DocumentReference"):
+              b = httpx.get(f"{base}/{t}", headers=h).json()
+              for e in b.get("entry", []):
+                  r = e["resource"]
+                  print("DIAG", t, r["id"], json.dumps(r.get("subject") or r.get("patient") or "")[:120])
+              print("DIAG", t, "total", len(b.get("entry", [])))
+          PY
           uv run python cookbook/prior_auth_packet.py | tee run.log
           uv run python - <<'PY'
           import os, httpx
