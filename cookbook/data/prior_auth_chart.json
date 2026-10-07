@@ -5,7 +5,7 @@
   "timestamp": "2026-08-19T14:02:11Z",
   "entry": [
     {
-      "fullUrl": "urn:uuid:wc-claimant-001",
+      "fullUrl": "urn:uuid:843e26e8-9109-5414-b77e-5ab9075287ea",
       "resource": {
         "resourceType": "Patient",
         "id": "wc-claimant-001",
@@ -24,7 +24,7 @@
       }
     },
     {
-      "fullUrl": "urn:uuid:cond-lumbar-radic",
+      "fullUrl": "urn:uuid:5bb12acd-47b4-5f7b-bc39-e59db010e59d",
       "resource": {
         "resourceType": "Condition",
         "id": "cond-lumbar-radic",
@@ -40,7 +40,7 @@
           "text": "lumbar radiculopathy, right L5 distribution"
         },
         "subject": {
-          "reference": "urn:uuid:wc-claimant-001"
+          "reference": "urn:uuid:843e26e8-9109-5414-b77e-5ab9075287ea"
         },
         "onsetDateTime": "2026-06-02"
       },
@@ -50,7 +50,7 @@
       }
     },
     {
-      "fullUrl": "urn:uuid:sr-mri-lumbar",
+      "fullUrl": "urn:uuid:181de4a4-e626-5dd9-bd87-6710219dfb75",
       "resource": {
         "resourceType": "ServiceRequest",
         "id": "sr-mri-lumbar",
@@ -60,11 +60,11 @@
           "text": "MRI lumbar spine without contrast"
         },
         "subject": {
-          "reference": "urn:uuid:wc-claimant-001"
+          "reference": "urn:uuid:843e26e8-9109-5414-b77e-5ab9075287ea"
         },
         "reasonReference": [
           {
-            "reference": "urn:uuid:cond-lumbar-radic"
+            "reference": "urn:uuid:5bb12acd-47b4-5f7b-bc39-e59db010e59d"
           }
         ],
         "authoredOn": "2026-08-18"
@@ -75,14 +75,14 @@
       }
     },
     {
-      "fullUrl": "urn:uuid:doc-treating-note",
+      "fullUrl": "urn:uuid:6c08a3c7-cd21-594b-9774-0ea1ed72e50f",
       "resource": {
         "resourceType": "DocumentReference",
         "id": "doc-treating-note",
         "status": "current",
         "description": "Treating physician progress note",
         "subject": {
-          "reference": "urn:uuid:wc-claimant-001"
+          "reference": "urn:uuid:843e26e8-9109-5414-b77e-5ab9075287ea"
         },
         "date": "2026-08-18T17:30:00Z",
         "content": [
