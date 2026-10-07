@@ -205,7 +205,14 @@ The `Task` carries the *coded* diagnosis, not the text the office typed:
     MEDPLUM_TOKEN_URL=https://api.medplum.com/oauth2/token
     ```
 
-    See [Working with FHIR Sandboxes](setup_fhir_sandboxes.md) for setup, and `healthchain seed medplum` for test data.
+    Seed the chart, then export the patient ID Medplum prints:
+
+    ```bash
+    healthchain seed medplum cookbook/data/prior_auth_chart.json
+    export PATIENT_ID=<the ID it printed>
+    ```
+
+    The write-back updates the Condition and ServiceRequest in place, and creates the justification and the Task that links to it. See [Working with FHIR Sandboxes](setup_fhir_sandboxes.md) for setup.
 
 ---
 

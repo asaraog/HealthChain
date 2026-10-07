@@ -55,8 +55,9 @@ IMAGING_CATALOG = "http://example.org/fhir/CodeSystem/imaging-order-catalog"
 
 # The chart as it comes off a FHIR server: Condition and ServiceRequest carry a
 # `code.text` and no coding at all, which is what a text-entered order looks like
-# every time. Swap PATIENT_ID and the search below for your own patient.
-PATIENT_ID = "wc-claimant-001"
+# every time. `healthchain seed medplum` prints the ID Medplum assigns; export
+# it as PATIENT_ID to run against your server.
+PATIENT_ID = os.getenv("PATIENT_ID", "wc-claimant-001")
 
 
 # --- Step 1: pull the chart --------------------------------------------------
@@ -331,6 +332,13 @@ def build_packet(condition, service_request, decision) -> "Bundle":  # noqa: F82
         description="Prior authorization justification",
         attachment_title="Medical necessity justification",
     )
+    justification.subject = {"reference": f"Patient/{PATIENT_ID}"}
+    task.input = [
+        {
+            "type": {"text": "Medical necessity justification"},
+            "valueReference": {"reference": f"DocumentReference/{justification.id}"},
+        }
+    ]
 
     bundle = create_bundle()
     for resource in (service_request, condition, task, justification):
@@ -377,9 +385,20 @@ def write_back(bundle):
     gateway.add_source(
         "medplum", FHIRAuthConfig.from_env("MEDPLUM").to_connection_string()
     )
-    for entry in bundle.entry:
-        created = gateway.create(entry.resource, source="medplum")
-        print(f"  wrote {created.__resource_type__}/{created.id} to medplum")
+    # The Condition and ServiceRequest came from this server: update them in place.
+    for resource_type in ("Condition", "ServiceRequest"):
+        for resource in get_resources(bundle, resource_type):
+            gateway.update(resource, source="medplum")
+            print(f"  updated {resource_type}/{resource.id}")
+
+    # The justification and the Task are new. Create the justification first so
+    # the Task can point at the ID the server gives it.
+    justification = get_resources(bundle, "DocumentReference")[0]
+    task = get_resources(bundle, "Task")[0]
+    doc = gateway.create(justification, source="medplum")
+    task.input[0].valueReference.reference = f"DocumentReference/{doc.id}"
+    created = gateway.create(task, source="medplum")
+    print(f"  created DocumentReference/{doc.id} and Task/{created.id}")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 {
   "resourceType": "Bundle",
   "id": "prior-auth-chart-pull",
-  "type": "searchset",
+  "type": "transaction",
   "timestamp": "2026-08-19T14:02:11Z",
   "entry": [
     {
@@ -17,6 +17,10 @@
         ],
         "gender": "male",
         "birthDate": "1979-04-12"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
       }
     },
     {
@@ -36,9 +40,13 @@
           "text": "lumbar radiculopathy, right L5 distribution"
         },
         "subject": {
-          "reference": "Patient/wc-claimant-001"
+          "reference": "urn:uuid:wc-claimant-001"
         },
         "onsetDateTime": "2026-06-02"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Condition"
       }
     },
     {
@@ -52,14 +60,18 @@
           "text": "MRI lumbar spine without contrast"
         },
         "subject": {
-          "reference": "Patient/wc-claimant-001"
+          "reference": "urn:uuid:wc-claimant-001"
         },
         "reasonReference": [
           {
-            "reference": "Condition/cond-lumbar-radic"
+            "reference": "urn:uuid:cond-lumbar-radic"
           }
         ],
         "authoredOn": "2026-08-18"
+      },
+      "request": {
+        "method": "POST",
+        "url": "ServiceRequest"
       }
     },
     {
@@ -70,7 +82,7 @@
         "status": "current",
         "description": "Treating physician progress note",
         "subject": {
-          "reference": "Patient/wc-claimant-001"
+          "reference": "urn:uuid:wc-claimant-001"
         },
         "date": "2026-08-18T17:30:00Z",
         "content": [
@@ -83,6 +95,10 @@
             }
           }
         ]
+      },
+      "request": {
+        "method": "POST",
+        "url": "DocumentReference"
       }
     }
   ]
