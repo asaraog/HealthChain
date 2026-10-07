@@ -33,7 +33,7 @@ jobs:
       - name: HTTPS proxy (HealthChain's gateway uses https)
         run: |
           curl -sL "https://caddyserver.com/api/download?os=linux&arch=amd64" -o caddy && chmod +x caddy
-          ./caddy reverse-proxy --from https://localhost:8443 --to localhost:8103 --internal-certs > caddy.log 2>&1 &
+          ./caddy reverse-proxy --from https://localhost:8443 --to localhost:8103 --internal-certs --disable-redirects > caddy.log 2>&1 &
           for i in $(seq 1 30); do [ -f ~/.local/share/caddy/pki/authorities/local/root.crt ] && break; sleep 1; done
           sleep 3
           cat $(python3 -c "import certifi;print(certifi.where())" 2>/dev/null || echo /etc/ssl/certs/ca-certificates.crt) ~/.local/share/caddy/pki/authorities/local/root.crt > bundle.pem
