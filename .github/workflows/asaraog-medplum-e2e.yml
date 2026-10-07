@@ -1,0 +1,74 @@
+name: asaraog-medplum-e2e
+on:
+  workflow_dispatch:
+    inputs:
+      ref: {required: true, type: string}
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CID: 9f4b2e3a-1c5d-4e6f-8a7b-0c1d2e3f4a5b
+      CSECRET: e2e-secret-0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: "${{ inputs.ref }}"}
+      - name: Start postgres, redis, medplum
+        run: |
+          docker run -d --name pg --network host -e POSTGRES_USER=medplum -e POSTGRES_PASSWORD=medplum -e POSTGRES_DB=medplum postgres:16
+          docker run -d --name redis --network host redis:7 redis-server --requirepass medplum
+          sleep 8
+          docker run -d --name medplum --network host \
+            -e MEDPLUM_PORT=8103 -e MEDPLUM_BASE_URL=https://localhost:8443/ -e MEDPLUM_APP_BASE_URL=http://localhost:3000/ \
+            -e MEDPLUM_STORAGE_BASE_URL=https://localhost:8443/storage/ \
+            -e MEDPLUM_DATABASE_HOST=localhost -e MEDPLUM_DATABASE_PORT=5432 -e MEDPLUM_DATABASE_DBNAME=medplum \
+            -e MEDPLUM_DATABASE_USERNAME=medplum -e MEDPLUM_DATABASE_PASSWORD=medplum \
+            -e MEDPLUM_REDIS_HOST=localhost -e MEDPLUM_REDIS_PORT=6379 -e MEDPLUM_REDIS_PASSWORD=medplum \
+            -e MEDPLUM_BINARY_STORAGE=file:./binary/ -e MEDPLUM_SUPPORT_EMAIL=support@example.com \
+            -e MEDPLUM_ALLOWED_ORIGINS='*' -e MEDPLUM_INTROSPECTION_ENABLED=true \
+            -e MEDPLUM_DEFAULT_SUPER_ADMIN_CLIENT_ID=$CID -e MEDPLUM_DEFAULT_SUPER_ADMIN_CLIENT_SECRET=$CSECRET \
+            medplum/medplum-server:latest env
+          for i in $(seq 1 90); do curl -sf http://localhost:8103/healthcheck && break; sleep 5; done
+          curl -sf http://localhost:8103/healthcheck || { docker logs medplum | tail -60; exit 1; }
+      - name: HTTPS proxy (HealthChain's gateway uses https)
+        run: |
+          curl -sL "https://caddyserver.com/api/download?os=linux&arch=amd64" -o caddy && chmod +x caddy
+          ./caddy reverse-proxy --from https://localhost:8443 --to localhost:8103 --internal-certs > caddy.log 2>&1 &
+          for i in $(seq 1 30); do [ -f ~/.local/share/caddy/pki/authorities/local/root.crt ] && break; sleep 1; done
+          sleep 3
+          cat $(python3 -c "import certifi;print(certifi.where())" 2>/dev/null || echo /etc/ssl/certs/ca-certificates.crt) ~/.local/share/caddy/pki/authorities/local/root.crt > bundle.pem
+          echo "SSL_CERT_FILE=$PWD/bundle.pem" >> $GITHUB_ENV
+          echo "REQUESTS_CA_BUNDLE=$PWD/bundle.pem" >> $GITHUB_ENV
+          curl -sf --cacert ~/.local/share/caddy/pki/authorities/local/root.crt https://localhost:8443/healthcheck
+      - uses: astral-sh/setup-uv@v4
+      - run: uv python install 3.12 && uv sync --all-extras --dev
+      - name: Seed, run the cookbook, verify the write-back
+        env:
+          MEDPLUM_CLIENT_ID: ${{ env.CID }}
+          MEDPLUM_CLIENT_SECRET: ${{ env.CSECRET }}
+          MEDPLUM_BASE_URL: https://localhost:8443/fhir/R4/
+          MEDPLUM_TOKEN_URL: https://localhost:8443/oauth2/token
+        run: |
+          set -o pipefail
+          uv run healthchain seed medplum cookbook/data/prior_auth_chart.json | tee seed.log
+          export PATIENT_ID=$(grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' seed.log | head -1)
+          echo "PATIENT_ID=$PATIENT_ID"; test -n "$PATIENT_ID"
+          uv run python cookbook/prior_auth_packet.py | tee run.log
+          uv run python - <<'PY'
+          import os, httpx
+          base = os.environ["MEDPLUM_BASE_URL"].rstrip("/"); pid = os.environ["PATIENT_ID"]
+          tok = httpx.post(os.environ["MEDPLUM_TOKEN_URL"], data={"grant_type": "client_credentials", "client_id": os.environ["MEDPLUM_CLIENT_ID"], "client_secret": os.environ["MEDPLUM_CLIENT_SECRET"]}).json()["access_token"]
+          h = {"Authorization": f"Bearer {tok}"}
+          def search(t): return [e["resource"] for e in httpx.get(f"{base}/{t}", params={"patient": pid}, headers=h).json().get("entry", [])]
+          conds, srs, docs, tasks = (search(t) for t in ("Condition", "ServiceRequest", "DocumentReference", "Task"))
+          print({k: len(v) for k, v in dict(Condition=conds, ServiceRequest=srs, DocumentReference=docs, Task=tasks).items()})
+          assert len(conds) == 1 and len(srs) == 1, "updated in place, not duplicated"
+          assert any(c.get("coding") for c in [conds[0]["code"]]), "Condition now coded"
+          assert len(tasks) == 1 and len(docs) == 2, "one Task, note + justification"
+          ref = tasks[0]["input"][0]["valueReference"]["reference"]
+          just = next(d for d in docs if f"DocumentReference/{d['id']}" == ref)
+          assert just["subject"]["reference"] == f"Patient/{pid}"
+          print("E2E OK: Task.input ->", ref)
+          PY
+      - if: failure()
+        run: docker logs medplum 2>&1 | tail -40; cat caddy.log | tail -20
