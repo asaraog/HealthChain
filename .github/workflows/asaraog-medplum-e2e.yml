@@ -39,7 +39,8 @@ jobs:
           cat $(python3 -c "import certifi;print(certifi.where())" 2>/dev/null || echo /etc/ssl/certs/ca-certificates.crt) ~/.local/share/caddy/pki/authorities/local/root.crt > bundle.pem
           echo "SSL_CERT_FILE=$PWD/bundle.pem" >> $GITHUB_ENV
           echo "REQUESTS_CA_BUNDLE=$PWD/bundle.pem" >> $GITHUB_ENV
-          curl -sf --cacert ~/.local/share/caddy/pki/authorities/local/root.crt https://localhost:8443/healthcheck
+          for i in $(seq 1 30); do curl -sf --cacert ~/.local/share/caddy/pki/authorities/local/root.crt https://localhost:8443/healthcheck && break; sleep 2; done
+          curl -sf --cacert ~/.local/share/caddy/pki/authorities/local/root.crt https://localhost:8443/healthcheck || { tail -30 caddy.log; exit 1; }
       - uses: astral-sh/setup-uv@v4
       - run: uv python install 3.12 && uv sync --all-extras --dev
       - name: Seed, run the cookbook, verify the write-back
